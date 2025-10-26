@@ -1,15 +1,16 @@
 package app
 
 import (
-	"errors"
+	"bufio"
 	"fmt"
 	"os"
 )
 
 var funcTable = map[string]menuFunction{
 	"0": menuFunction{Title: "Выход", Function: StopApp},
-	"1": menuFunction{Title: "Тестовая функция с ошибкой", Function: TestFuncWithError},
-	"2": menuFunction{Title: "Тестовая успешная функция", Function: AccessFunc},
+	"1": menuFunction{Title: "Создать заметку", Function: CreateNotes},
+	"2": menuFunction{Title: "Просмотр всех  заметок", Function: ListNotes},
+	"3": menuFunction{Title: "Редактирование заметок", Function: EditNotes},
 }
 
 func RunApp() {
@@ -20,6 +21,7 @@ func RunApp() {
 		fmt.Print(generateMenu(funcTable))
 		fmt.Scan(&command)
 		fmt.Println("----------------------------")
+		bufio.NewReader(os.Stdin).ReadBytes('\n')
 		targetF, ok := funcTable[command]
 		if !ok {
 			fmt.Println("\033[31mКоманда не найдена\033[0m")
@@ -31,20 +33,6 @@ func RunApp() {
 
 			continue
 		}
-		fmt.Println("\033[32mУспешно!\033[0m")
+
 	}
-}
-
-func AccessFunc() error {
-	return nil
-}
-
-func TestFuncWithError() error {
-	return errors.New("тестовая ошибка")
-}
-
-func StopApp() error {
-	fmt.Println("\033[33mДо свидания!\033[0m")
-	os.Exit(0)
-	return nil
 }
