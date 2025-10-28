@@ -6,6 +6,7 @@ import (
 	"os"
 )
 
+var Notes []Note
 var funcTable = map[string]menuFunction{
 	"0": menuFunction{Title: "Выход", Function: StopApp},
 	"1": menuFunction{Title: "Создать заметку", Function: CreateNotes},
@@ -15,6 +16,7 @@ var funcTable = map[string]menuFunction{
 
 func RunApp() {
 	fmt.Println("\033[33mДобро пожаловать \"Записки Ластоногих\"\033[0m")
+	Notes = LoadNotes()
 	var command string
 	for {
 		fmt.Println("----------------------------")

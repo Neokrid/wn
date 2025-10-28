@@ -12,20 +12,22 @@ import (
 )
 
 func LoadNotes() []Note {
-	data, err := os.ReadFile("../data/notes.json")
+	data, err := os.ReadFile(note_path)
 	if err != nil {
 		fmt.Printf("\033[31mОшибка: %s\n\033[0m", err.Error())
 	}
 	var notes []Note
 	err = json.Unmarshal(data, &notes)
+	if err != nil {
+		fmt.Printf("\033[31mОшибка: %s\n\033[0m", err.Error())
+	}
 	return notes
 }
 
 func CreateNotes() error {
 	scanner := bufio.NewScanner(os.Stdin)
-	var notes = LoadNotes()
 	var note Note
-	note.ID = len(notes) + 1
+	note.ID = len(Notes) + 1
 	note.CreateDate = time.Now()
 	fmt.Printf("\033[35mВведите название заметки:\n\033[0m")
 	if scanner.Scan() {
@@ -36,17 +38,16 @@ func CreateNotes() error {
 		note.Body = scanner.Text()
 		bufio.NewReader(os.Stdin).ReadBytes('\n')
 	}
-	SaveNote(note, notes)
+	Notes = append(Notes, note)
 	return nil
 }
 
-func SaveNote(note Note, notes []Note) {
-	notes = append(notes, note)
-	data, err := json.MarshalIndent(notes, "", "  ")
+func SaveNote(notes []Note) {
+	data, err := json.MarshalIndent(Notes, "", "  ")
 	if err != nil {
 		fmt.Printf("\033[31mОшибка: %s\n\033[0m", err.Error())
 	}
-	os.WriteFile("../data/notes.json", data, 0644)
+	os.WriteFile(note_path, data, 0644)
 }
 
 func Crop(s string) string {
@@ -57,12 +58,11 @@ func Crop(s string) string {
 	return string(newString[:17]) + "..."
 }
 func ListNotes() error {
-	notes := LoadNotes()
-	for i := range notes {
-		if len(notes[i].Title) > 17 {
-			fmt.Printf("%v - %s - %s\n", int(notes[i].ID), Crop(notes[i].Title), notes[i].CreateDate.Format("02-01-2006"))
+	for i := range Notes {
+		if len(Notes[i].Title) > 17 {
+			fmt.Printf("%v - %-20s - %s\n", int(Notes[i].ID), Crop(Notes[i].Title), Notes[i].CreateDate.Format("02-01-2006"))
 		} else {
-			fmt.Printf("%v - %-20s - %s\n", int(notes[i].ID), Crop(notes[i].Title), notes[i].CreateDate.Format("02-01-2006"))
+			fmt.Printf("%v - %-20s - %s\n", int(Notes[i].ID), Crop(Notes[i].Title), Notes[i].CreateDate.Format("02-01-2006"))
 		}
 
 	}
@@ -70,18 +70,17 @@ func ListNotes() error {
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		value, err := strconv.Atoi(scanner.Text())
-		if err != nil || value > len(notes) {
-			err = errors.New("введите номер заметки")
-			return err
+		if err != nil || value > len(Notes) {
+			return errors.New("введите номер заметки")
 		} else if value == 0 {
 			return nil
 		}
-		fmt.Printf("%v - %-20s - %v\n", notes[value-1].ID, notes[value-1].Title, notes[value-1].CreateDate.Format("02-01-2006"))
-		for _, line := range LineWrap(notes[value-1].Body) {
+		fmt.Printf("%v - %-20s - %v\n", Notes[value-1].ID, Notes[value-1].Title, Notes[value-1].CreateDate.Format("02-01-2006"))
+		for _, line := range LineWrap(Notes[value-1].Body) {
 			fmt.Printf("%s\n", line)
 		}
 	}
-	err := ViewingNote(notes)
+	err := ViewingNote(Notes)
 	return err
 }
 func LineWrap(text string) []string {
@@ -109,8 +108,8 @@ func ViewingNote(notes []Note) error {
 	for scanner.Scan() {
 		value, err := strconv.Atoi(scanner.Text())
 		if err != nil || value > len(notes) {
-			err = errors.New("введите номер заметки")
-			return err
+
+			return errors.New("введите номер заметки")
 		} else if value == 0 {
 			return nil
 		}
@@ -120,57 +119,52 @@ func ViewingNote(notes []Note) error {
 }
 
 func EditNotes() error {
-	notes := LoadNotes()
-	var nunber int
-	for i := range notes {
-		if len(notes[i].Title) > 17 {
-			fmt.Printf("%v - %s - %s\n", int(notes[i].ID), Crop(notes[i].Title), notes[i].CreateDate.Format("02-01-2006"))
+	var number int
+	for i := range Notes {
+		if len(Notes[i].Title) > 17 {
+			fmt.Printf("%v - %-20s - %s\n", int(Notes[i].ID), Crop(Notes[i].Title), Notes[i].CreateDate.Format("02-01-2006"))
 		} else {
-			fmt.Printf("%v - %-20s - %s\n", int(notes[i].ID), Crop(notes[i].Title), notes[i].CreateDate.Format("02-01-2006"))
+			fmt.Printf("%v - %-20s - %s\n", int(Notes[i].ID), Crop(Notes[i].Title), Notes[i].CreateDate.Format("02-01-2006"))
 		}
 	}
 	fmt.Printf("\033[35mВведите номер заметки для редактирования:\n\033[0m")
-	fmt.Scan(&nunber)
-	if nunber == 0 || nunber > len(notes) {
+	fmt.Scan(&number)
+	if number == 0 || number > len(Notes) {
 		err := errors.New("введите номер заметки для редактирования")
 		return err
 	}
 	scanner := bufio.NewScanner(os.Stdin)
 	bufio.NewReader(os.Stdin).ReadBytes('\n')
-	//Доделать редактирование
-	for i := range notes {
-		if notes[i].ID == nunber {
+
+	for i := range Notes {
+		if Notes[i].ID == number {
 			fmt.Printf("\033[35mВведите заголовок:\033[0m")
 			if scanner.Scan() {
 				if scanner.Text() != "" {
-					notes[i].Title = scanner.Text()
+					Notes[i].Title = scanner.Text()
 				}
 			}
 			fmt.Printf("\033[35mВведите текст заметки:\033[0m")
 			if scanner.Scan() {
 				if scanner.Text() != "" {
-					notes[i].Body = scanner.Text()
+					Notes[i].Body = scanner.Text()
 				}
 
 				fmt.Printf("\033[35mВведите дату создания заметки:\033[0m")
 				if scanner.Scan() {
 					if scanner.Text() != "" {
-						notes[i].CreateDate, _ = time.Parse("02-01-2006", scanner.Text())
+						Notes[i].CreateDate, _ = time.Parse("02-01-2006", scanner.Text())
 					}
 
 				}
 
 			}
-			data, err := json.MarshalIndent(notes, "", "  ")
-			if err != nil {
-				fmt.Printf("\033[31mОшибка: %s\n\033[0m", err.Error())
-			}
-			os.WriteFile("../data/notes.json", data, 0644)
 		}
 	}
 	return nil
 }
 func StopApp() error {
+	SaveNote(Notes)
 	fmt.Println("\033[33mДо свидания!\033[0m")
 	os.Exit(0)
 	return nil
