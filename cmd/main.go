@@ -3,5 +3,7 @@ package main
 import "cli/app"
 
 func main() {
-	app.RunApp()
+	chest := app.NewChestNotes()
+	chest.Load()
+	chest.RunApp()
 }

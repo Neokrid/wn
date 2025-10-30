@@ -11,43 +11,57 @@ import (
 	"time"
 )
 
-func LoadNotes() []Note {
+func (c *ChestNotes) Load() error {
 	data, err := os.ReadFile(note_path)
 	if err != nil {
-		fmt.Printf("\033[31mОшибка: %s\n\033[0m", err.Error())
+		if !errors.Is(err, os.ErrNotExist) {
+			fmt.Printf("\033[31mОшибка: %s\n\033[0m", err.Error())
+		}
+		c.notes = make([]Note, 0)
+		return nil
 	}
-	var notes []Note
-	err = json.Unmarshal(data, &notes)
-	if err != nil {
-		fmt.Printf("\033[31mОшибка: %s\n\033[0m", err.Error())
-	}
-	return notes
-}
 
-func CreateNotes() error {
-	scanner := bufio.NewScanner(os.Stdin)
-	var note Note
-	note.ID = len(Notes) + 1
-	note.CreateDate = time.Now()
-	fmt.Printf("\033[35mВведите название заметки:\n\033[0m")
-	if scanner.Scan() {
-		note.Title = scanner.Text()
+	var notes []Note
+	if err := json.Unmarshal(data, &notes); err != nil {
+		fmt.Printf("\033[31mОшибка: %s\n\033[0m", err.Error())
+		c.notes = make([]Note, 0)
+		return err
 	}
-	fmt.Printf("\033[35mВведите текст заметки:\n\033[0m")
-	if scanner.Scan() {
-		note.Body = scanner.Text()
-		bufio.NewReader(os.Stdin).ReadBytes('\n')
-	}
-	Notes = append(Notes, note)
+
+	c.notes = notes
 	return nil
 }
 
-func SaveNote(notes []Note) {
-	data, err := json.MarshalIndent(Notes, "", "  ")
+func EnterValue(msg string) string {
+	fmt.Print(msg)
+	var enterString string
+	fmt.Scanln(&enterString)
+	return enterString
+}
+
+func (c *ChestNotes) Create() error {
+	var note Note
+	maxID := 0
+	for _, n := range c.notes {
+		if n.ID > maxID {
+			maxID = n.ID
+		}
+	}
+	note.ID = maxID + 1
+	note.Title = EnterValue("Введите название заметки:")
+	note.Body = EnterValue("Введите текст заметки:")
+	fmt.Printf("\033[35mВведите текст заметки:\n\033[0m")
+	c.notes = append(c.notes, note)
+	return nil
+}
+
+func (c *ChestNotes) Save(filePath string) error {
+	data, err := json.MarshalIndent(c.notes, "", "  ")
 	if err != nil {
 		fmt.Printf("\033[31mОшибка: %s\n\033[0m", err.Error())
+		return err
 	}
-	os.WriteFile(note_path, data, 0644)
+	return os.WriteFile(filePath, data, 0644)
 }
 
 func Crop(s string) string {
@@ -57,32 +71,46 @@ func Crop(s string) string {
 	}
 	return string(newString[:17]) + "..."
 }
-func ListNotes() error {
-	for i := range Notes {
-		if len(Notes[i].Title) > 17 {
-			fmt.Printf("%v - %-20s - %s\n", int(Notes[i].ID), Crop(Notes[i].Title), Notes[i].CreateDate.Format("02-01-2006"))
-		} else {
-			fmt.Printf("%v - %-20s - %s\n", int(Notes[i].ID), Crop(Notes[i].Title), Notes[i].CreateDate.Format("02-01-2006"))
-		}
 
+func (c *ChestNotes) List() error {
+	var selected *Note
+	for _, note := range c.notes {
+		fmt.Printf("%v - %-20s - %s\n", note.ID, Crop(note.Title), note.CreateDate.Format("02-01-2006"))
 	}
 	fmt.Printf("\n\033[35m0 - Назад\n\033[0m")
+
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
-		value, err := strconv.Atoi(scanner.Text())
-		if err != nil || value > len(Notes) {
+		input := scanner.Text()
+		value, err := strconv.Atoi(input)
+		if err != nil || value < 0 || value > len(c.notes) {
 			return errors.New("введите номер заметки")
-		} else if value == 0 {
+		}
+
+		if value == 0 {
 			return nil
 		}
-		fmt.Printf("%v - %-20s - %v\n", Notes[value-1].ID, Notes[value-1].Title, Notes[value-1].CreateDate.Format("02-01-2006"))
-		for _, line := range LineWrap(Notes[value-1].Body) {
+
+		for i := range c.notes {
+			if c.notes[i].ID == value {
+				selected = &c.notes[i]
+				break
+			}
+		}
+		if selected == nil {
+			fmt.Println("Заметка не найдена.")
+			continue
+		}
+
+		fmt.Printf("%v - %-20s - %s\n", selected.ID, selected.Title, selected.CreateDate.Format("02-01-2006"))
+		for _, line := range LineWrap(selected.Body) {
 			fmt.Printf("%s\n", line)
 		}
+		fmt.Println("\n\033[35m0 - Назад\n\033[0m")
 	}
-	err := ViewingNote(Notes)
-	return err
+	return nil
 }
+
 func LineWrap(text string) []string {
 	var res []string
 	words := strings.Fields(text)
@@ -103,69 +131,54 @@ func LineWrap(text string) []string {
 	return res
 }
 
-func ViewingNote(notes []Note) error {
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		value, err := strconv.Atoi(scanner.Text())
-		if err != nil || value > len(notes) {
+func (c *ChestNotes) Edit() error {
 
-			return errors.New("введите номер заметки")
-		} else if value == 0 {
-			return nil
-		}
-		fmt.Printf("%v - %-20s - %v\n", notes[value-1].ID, notes[value-1].Title, notes[value-1].CreateDate.Format("02-01-2006"))
+	for _, note := range c.notes {
+		fmt.Printf("%v - %-20s - %s\n", note.ID, Crop(note.Title), note.CreateDate.Format("02-01-2006"))
 	}
-	return nil
-}
 
-func EditNotes() error {
-	var number int
-	for i := range Notes {
-		if len(Notes[i].Title) > 17 {
-			fmt.Printf("%v - %-20s - %s\n", int(Notes[i].ID), Crop(Notes[i].Title), Notes[i].CreateDate.Format("02-01-2006"))
-		} else {
-			fmt.Printf("%v - %-20s - %s\n", int(Notes[i].ID), Crop(Notes[i].Title), Notes[i].CreateDate.Format("02-01-2006"))
-		}
-	}
 	fmt.Printf("\033[35mВведите номер заметки для редактирования:\n\033[0m")
-	fmt.Scan(&number)
-	if number == 0 || number > len(Notes) {
-		err := errors.New("введите номер заметки для редактирования")
-		return err
-	}
-	scanner := bufio.NewScanner(os.Stdin)
+	var input string
+	fmt.Scan(&input)
 	bufio.NewReader(os.Stdin).ReadBytes('\n')
+	id, err := strconv.Atoi(input)
+	if err != nil || id <= 0 {
+		return errors.New("введите НОМЕР заметки.")
+	}
 
-	for i := range Notes {
-		if Notes[i].ID == number {
-			fmt.Printf("\033[35mВведите заголовок:\033[0m")
-			if scanner.Scan() {
-				if scanner.Text() != "" {
-					Notes[i].Title = scanner.Text()
+	found := false
+	for i := range c.notes {
+		if c.notes[i].ID == id {
+			found = true
+			title := EnterValue("Введите новый заголовок (оставьте пустым, чтобы не менять): ")
+			if title != "" {
+				c.notes[i].Title = title
+			}
+
+			body := EnterValue("Введите новый текст (оставьте пустым, чтобы не менять): ")
+			if body != "" {
+				c.notes[i].Body = body
+			}
+
+			dateStr := EnterValue("Введите новую дату (формат: 02-01-2006): ")
+			if dateStr != "" {
+				if parsed, err := time.Parse("02-01-2006", dateStr); err == nil {
+					c.notes[i].CreateDate = parsed
 				}
 			}
-			fmt.Printf("\033[35mВведите текст заметки:\033[0m")
-			if scanner.Scan() {
-				if scanner.Text() != "" {
-					Notes[i].Body = scanner.Text()
-				}
-
-				fmt.Printf("\033[35mВведите дату создания заметки:\033[0m")
-				if scanner.Scan() {
-					if scanner.Text() != "" {
-						Notes[i].CreateDate, _ = time.Parse("02-01-2006", scanner.Text())
-					}
-
-				}
-
-			}
+			break
 		}
 	}
+
+	if !found {
+		return errors.New("заметка не найдена")
+	}
+
 	return nil
 }
-func StopApp() error {
-	SaveNote(Notes)
+
+func (c *ChestNotes) Stop() {
+	c.Save(note_path)
 	fmt.Println("\033[33mДо свидания!\033[0m")
 	os.Exit(0)
-	return nil
 }
